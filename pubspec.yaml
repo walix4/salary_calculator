@@ -19,6 +19,7 @@ dependencies:
   intl: ^0.20.2
   freezed_annotation: ^3.0.0
   json_annotation: ^4.9.0
+  video_player: ^2.14.1
 
 dev_dependencies:
   flutter_test:
@@ -32,3 +33,5 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/paywall/

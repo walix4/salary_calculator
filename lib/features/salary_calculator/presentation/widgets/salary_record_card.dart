@@ -1,135 +1,157 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_spacing.dart';
+import '../../../../core/theme/app_typography.dart';
 import '../../../../core/utils/currency_formatter.dart';
+import '../../../../core/widgets/widgets.dart';
 import '../../domain/entities/salary_record.dart';
-import '../providers/providers.dart';
-import 'salary_breakdown_card.dart';
 
-class SalaryRecordCard extends ConsumerWidget {
+/// Klarna-style transaction row for a salary record: pink initial avatar,
+/// name, grey "days · date" subtitle and a right-aligned bold net amount.
+///
+/// Swipe end-to-start to delete; deletion is confirmed via a bottom sheet.
+class SalaryRecordCard extends StatelessWidget {
   const SalaryRecordCard({
     super.key,
     required this.record,
+    required this.netSalary,
     required this.onTap,
     required this.onDelete,
   });
 
   final SalaryRecord record;
+  final double netSalary;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
-    final breakdown = ref.read(calculateSalaryUseCaseProvider)(
-      basicSalary: record.basicSalary,
-      numberOfDaysInMonth: record.numberOfDaysInMonth,
-      numberOfDaysServed: record.numberOfDaysServed,
-      pfPercentage: record.pfPercentage,
-      eobiAmount: record.eobiAmount,
-      taxAmount: record.taxAmount,
-    );
+  static final DateFormat _dateFormat = DateFormat('MMM d, yyyy');
 
-    final title = record.employeeName?.trim().isNotEmpty == true
-        ? record.employeeName!
-        : 'Unnamed Employee';
+  String get _title => record.employeeName?.trim().isNotEmpty == true
+      ? record.employeeName!.trim()
+      : 'Unnamed employee';
+
+  @override
+  Widget build(BuildContext context) {
+    final title = _title;
     final subtitle =
-        '${record.numberOfDaysServed}/${record.numberOfDaysInMonth} days';
+        '${record.numberOfDaysServed}/${record.numberOfDaysInMonth} days'
+        ' · ${_dateFormat.format(record.updatedAt)}';
+    final amount = CurrencyFormatter.format(netSalary);
 
     return Dismissible(
       key: ValueKey(record.id),
       direction: DismissDirection.endToStart,
-      confirmDismiss: (_) => _confirmDelete(context),
-      onDismissed: (_) => onDelete(),
-      background: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        color: theme.colorScheme.error,
-        child: Icon(Icons.delete, color: theme.colorScheme.onError),
+      confirmDismiss: (_) => showConfirmSheet(
+        context,
+        title: 'Delete this record?',
+        message:
+            'The salary record for $title will be permanently removed. '
+            'This can\'t be undone.',
+        confirmLabel: 'Yes, delete record',
+        cancelLabel: 'No, keep it',
       ),
-      child: Card(
-        clipBehavior: Clip.antiAlias,
+      onDismissed: (_) => onDelete(),
+      background: const _DeleteBackground(),
+      child: Semantics(
+        button: true,
+        label: '$title, $subtitle, net $amount',
+        hint: 'Opens details. Swipe left to delete.',
+        excludeSemantics: true,
         child: InkWell(
           onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                CircleAvatar(
-                  backgroundColor: theme.colorScheme.primaryContainer,
-                  child: Text(
-                    title.characters.first.toUpperCase(),
-                    style: TextStyle(color: theme.colorScheme.onPrimaryContainer),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        subtitle,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      Text(
-                        formatRecordDate(record.updatedAt),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 64),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.screen,
+                vertical: AppSpacing.sm,
+              ),
+              child: LayoutBuilder(
+                builder: (context, constraints) => Row(
                   children: [
-                    Text(
-                      CurrencyFormatter.format(breakdown.netSalary),
-                      style: theme.textTheme.titleMedium?.copyWith(
-                        color: theme.colorScheme.primary,
-                        fontWeight: FontWeight.bold,
+                    IconBadge(letter: title.characters.first.toUpperCase()),
+                    const SizedBox(width: AppSpacing.sm),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            title,
+                            style: AppTypography.cardTitle,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle,
+                            style: AppTypography.caption.copyWith(fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      'Net',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(width: AppSpacing.sm),
+                    // Cap the amount so long names keep some room; very large
+                    // values scale down instead of overflowing.
+                    ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: constraints.maxWidth * 0.45,
+                      ),
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerRight,
+                        child: Text(
+                          amount,
+                          maxLines: 1,
+                          style: AppTypography.amount.copyWith(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w700,
+                          ),
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
       ),
     );
   }
+}
 
-  Future<bool> _confirmDelete(BuildContext context) async {
-    final result = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete record?'),
-        content: const Text(
-          'This salary record will be permanently removed.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+class _DeleteBackground extends StatelessWidget {
+  const _DeleteBackground();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: AppColors.errorSoft,
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.delete_outline,
+            color: AppColors.error,
+            size: AppSpacing.iconSize,
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete'),
+          const SizedBox(width: AppSpacing.xs),
+          Text(
+            'Delete',
+            style: AppTypography.label.copyWith(
+              color: AppColors.error,
+              fontWeight: FontWeight.w600,
+            ),
           ),
         ],
       ),
     );
-    return result ?? false;
   }
 }

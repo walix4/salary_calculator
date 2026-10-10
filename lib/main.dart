@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'core/constants/app_constants.dart';
-import 'features/salary_calculator/presentation/screens/salary_list_screen.dart';
+import 'core/theme/app_theme.dart';
+import 'app/app_gate.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,23 +18,8 @@ class SalaryCalculatorApp extends StatelessWidget {
     return MaterialApp(
       title: AppConstants.appTitle,
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF1565C0),
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        inputDecorationTheme: const InputDecorationTheme(
-          filled: true,
-        ),
-        cardTheme: CardThemeData(
-          elevation: 1,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-        ),
-      ),
-      home: const SalaryListScreen(),
+      theme: AppTheme.light,
+      home: const AppGate(),
     );
   }
 }
